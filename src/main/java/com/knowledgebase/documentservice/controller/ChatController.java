@@ -12,7 +12,6 @@ import java.util.Map;
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
 public class ChatController {
     
     private final RagService ragService;
