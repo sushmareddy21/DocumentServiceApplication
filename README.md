@@ -6,7 +6,7 @@ This backend service ingests PDF documents, processes them using vector embeddin
 
 🚀 Live Demo
 
-Backend API: documentserviceapplication-production.up.railway.app
+Backend API: [documentserviceapplication-production.up.railway.app](https://documentserviceapplication-production.up.railway.app/api/documents/health)
 
 Frontend App: https://knowledge-base-frontend-five.vercel.app/
 
