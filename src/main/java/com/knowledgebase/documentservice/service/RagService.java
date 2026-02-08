@@ -39,23 +39,20 @@ public class RagService {
                 .orElseThrow(() -> new RuntimeException("Document not found: " + documentId));
         
         try {
-            // Download PDF from S3
             InputStream pdfStream = s3Service.downloadFile(doc.getS3Key());
             InputStreamResource resource = new InputStreamResource(pdfStream);
             
-            // Read PDF
             DocumentReader reader = new PagePdfDocumentReader(resource);
             List<org.springframework.ai.document.Document> documents = reader.get();
             
             log.info("Read {} pages from PDF", documents.size());
             
-            // Split into chunks (OpenAI has token limits)
-            TokenTextSplitter splitter = new TokenTextSplitter(500, 100, 5, 1000, true);
+            // Standard splitter for OpenAI
+            TokenTextSplitter splitter = new TokenTextSplitter();
             List<org.springframework.ai.document.Document> chunks = splitter.apply(documents);
             
             log.info("Split into {} chunks", chunks.size());
             
-            // Add metadata to each chunk
             chunks.forEach(chunk -> {
                 Map<String, Object> metadata = new HashMap<>(chunk.getMetadata());
                 metadata.put("document_id", documentId.toString());
@@ -64,10 +61,8 @@ public class RagService {
                 chunk.getMetadata().putAll(metadata);
             });
             
-            // Store in Pinecone
             vectorStore.add(chunks);
             
-            // Mark as processed
             doc.setIsProcessed(true);
             documentRepository.save(doc);
             
@@ -86,53 +81,42 @@ public class RagService {
         log.info("Received question: {}", question);
         
         try {
-            // Search Pinecone for relevant chunks
+            // UPDATED: Lower threshold to 0.5 to find more matches
             SearchRequest searchRequest = SearchRequest.query(question)
                     .withTopK(5)
-                    .withSimilarityThreshold(0.7);
+                    .withSimilarityThreshold(0.5); 
             
             List<org.springframework.ai.document.Document> relevantDocs = 
                     vectorStore.similaritySearch(searchRequest);
             
+            // DEBUG LOG: See if Pinecone is actually returning anything
+            log.info("Pinecone found {} relevant chunks for question: '{}'", relevantDocs.size(), question);
+            
             if (relevantDocs.isEmpty()) {
-                return "I don't have enough information to answer that question. Please upload relevant documents first.";
+                return "I searched your documents but couldn't find relevant information matching your question.";
             }
             
-            log.info("Found {} relevant chunks from Pinecone", relevantDocs.size());
-            
-            // Build context from relevant documents
             String context = relevantDocs.stream()
                     .map(org.springframework.ai.document.Document::getContent)
                     .collect(Collectors.joining("\n\n"));
             
-            // Create prompt for OpenAI
             String promptText = String.format("""
-                You are a helpful AI assistant that answers questions based on the provided context.
-                Use ONLY the information from the context to answer the question.
-                If the answer is not in the context, say "I don't have that information in the uploaded documents."
-                Be concise and accurate.
+                You are a helpful AI assistant.
+                Answer the question based ONLY on the provided context.
+                If the answer isn't there, say "I don't have that information."
                 
-                Context from documents:
+                Context:
                 %s
                 
                 Question: %s
-                
-                Answer:
                 """, context, question);
             
-            // Get response from OpenAI
             ChatClient chatClient = chatClientBuilder.build();
-            String answer = chatClient.prompt()
-                    .user(promptText)
-                    .call()
-                    .content();
-            
-            log.info("Generated answer from OpenAI");
-            return answer;
+            return chatClient.prompt().user(promptText).call().content();
             
         } catch (Exception e) {
             log.error("Error in askQuestion: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process question", e);
+            return "Sorry, I encountered an error processing your request.";
         }
     }
     
@@ -143,14 +127,13 @@ public class RagService {
         log.info("Received question for document {}: {}", documentId, question);
         
         try {
-            // Verify document exists
             documentRepository.findById(documentId)
                     .orElseThrow(() -> new RuntimeException("Document not found: " + documentId));
             
-            // Search with similarity
+            // UPDATED: Lower threshold to 0.5
             SearchRequest searchRequest = SearchRequest.query(question)
                     .withTopK(10)
-                    .withSimilarityThreshold(0.6);
+                    .withSimilarityThreshold(0.5);
             
             List<org.springframework.ai.document.Document> relevantDocs = 
                     vectorStore.similaritySearch(searchRequest);
@@ -164,42 +147,31 @@ public class RagService {
                     .limit(5)
                     .collect(Collectors.toList());
             
+            log.info("Pinecone found {} relevant chunks for document ID {}", filteredDocs.size(), documentId);
+            
             if (filteredDocs.isEmpty()) {
-                return "I couldn't find relevant information in this specific document to answer your question.";
+                return "I couldn't find relevant information in this specific document.";
             }
             
-            log.info("Found {} relevant chunks from specific document", filteredDocs.size());
-            
-            // Build context
             String context = filteredDocs.stream()
                     .map(org.springframework.ai.document.Document::getContent)
                     .collect(Collectors.joining("\n\n"));
             
-            // Create prompt
             String promptText = String.format("""
                 Answer the question based ONLY on this document content.
-                Be specific and cite information from the document.
                 
                 Document content:
                 %s
                 
                 Question: %s
-                
-                Answer:
                 """, context, question);
             
-            // Get response from OpenAI
             ChatClient chatClient = chatClientBuilder.build();
-            String answer = chatClient.prompt()
-                    .user(promptText)
-                    .call()
-                    .content();
-            
-            return answer;
+            return chatClient.prompt().user(promptText).call().content();
             
         } catch (Exception e) {
             log.error("Error in askQuestionByDocument: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process question", e);
+            return "Sorry, I encountered an error.";
         }
     }
 }
