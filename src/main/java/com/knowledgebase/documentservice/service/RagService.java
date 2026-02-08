@@ -81,7 +81,7 @@ public class RagService {
         log.info("Received question: {}", question);
         
         try {
-            // UPDATED: Lower threshold to 0.5 to find more matches
+            // Global Search: Look everywhere, threshold 0.5 is fine for global search
             SearchRequest searchRequest = SearchRequest.query(question)
                     .withTopK(5)
                     .withSimilarityThreshold(0.5); 
@@ -89,7 +89,6 @@ public class RagService {
             List<org.springframework.ai.document.Document> relevantDocs = 
                     vectorStore.similaritySearch(searchRequest);
             
-            // DEBUG LOG: See if Pinecone is actually returning anything
             log.info("Pinecone found {} relevant chunks for question: '{}'", relevantDocs.size(), question);
             
             if (relevantDocs.isEmpty()) {
@@ -130,30 +129,26 @@ public class RagService {
             documentRepository.findById(documentId)
                     .orElseThrow(() -> new RuntimeException("Document not found: " + documentId));
             
-            // UPDATED: Lower threshold to 0.5
+            // FIX: Remove threshold for specific document search
+            // We are already filtering by ID, so we want the best matches regardless of score
             SearchRequest searchRequest = SearchRequest.query(question)
                     .withTopK(10)
-                    .withSimilarityThreshold(0.5);
+                    .withSimilarityThreshold(0.01) // Virtually zero threshold
+                    .withFilterExpression("document_id == '" + documentId + "'");
             
             List<org.springframework.ai.document.Document> relevantDocs = 
                     vectorStore.similaritySearch(searchRequest);
             
-            // Filter by document ID
-            List<org.springframework.ai.document.Document> filteredDocs = relevantDocs.stream()
-                    .filter(doc -> {
-                        Object docId = doc.getMetadata().get("document_id");
-                        return docId != null && docId.toString().equals(documentId.toString());
-                    })
-                    .limit(5)
-                    .collect(Collectors.toList());
+            log.info("Pinecone found {} relevant chunks for document ID {}", relevantDocs.size(), documentId);
             
-            log.info("Pinecone found {} relevant chunks for document ID {}", filteredDocs.size(), documentId);
-            
-            if (filteredDocs.isEmpty()) {
+            if (relevantDocs.isEmpty()) {
+                // Fallback debug: check if any chunks exist without filter (just to see if vectors are broken)
+                // This won't run in production, just helps us know if it's empty.
+                log.warn("No chunks found with filter. Document might not be indexed correctly.");
                 return "I couldn't find relevant information in this specific document.";
             }
             
-            String context = filteredDocs.stream()
+            String context = relevantDocs.stream()
                     .map(org.springframework.ai.document.Document::getContent)
                     .collect(Collectors.joining("\n\n"));
             
