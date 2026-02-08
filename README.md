@@ -6,9 +6,9 @@ This backend service ingests PDF documents, processes them using vector embeddin
 
 🚀 Live Demo
 
-Backend API: https://your-app.up.railway.app (Replace with your actual Railway URL)
+Backend API: documentserviceapplication-production.up.railway.app
 
-Frontend App: https://knowledge-base-ui.vercel.app (Replace with your actual Vercel URL)
+Frontend App: https://knowledge-base-frontend-five.vercel.app/
 
 🛠️ Tech Stack
 
@@ -177,8 +177,4 @@ Deploy!
 
 👨‍💻 Author
 
-Sushma Reddy LinkedIn | GitHub
-
-📄 License
-
-MIT License
+Sushma Reddy
