@@ -6,9 +6,9 @@ This backend service ingests PDF documents, processes them using vector embeddin
 
 🚀 Live Demo
 
-Backend API: [documentserviceapplication-production.up.railway.app](https://documentserviceapplication-production.up.railway.app/api/documents/health)
+Backend API: [https://documentserviceapplication-production.up.railway.app](https://documentserviceapplication-production.up.railway.app/api/documents/health)
 
-Frontend App: https://knowledge-base-frontend-five.vercel.app/
+Frontend App: https://knowledge-base-frontend-five.vercel.app
 
 🛠️ Tech Stack
 
@@ -59,6 +59,7 @@ graph TD
     API -->|Context + Question| GPT[OpenAI GPT-4o-mini]
     GPT -->|Answer| Client
     end
+
 
 
 📡 API Endpoints
@@ -160,9 +161,11 @@ spring.ai.vectorstore.pinecone.project-id=your-project-id
 spring.ai.vectorstore.pinecone.index-name=knowledge-base
 
 
+
 Run Locally
 
 ./mvnw spring-boot:run
+
 
 
 📦 Deployment
